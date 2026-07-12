@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cinema Archive - Movie Recommender</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <div class="archive-container">
+        
+        <!-- Header Banner -->
+        <header class="archive-header">
+            <h1 class="serif-font">Cinema Archive</h1>
+            <p class="subtitle font-sans">A content-based movie recommendation catalog.</p>
+        </header>
+
+        <div class="archive-content">
+            
+            <!-- LEFT COLUMN: CONTROLS & SEARCH -->
+            <div class="controls-panel">
+                
+                <div class="section-title uppercase-label">Select Base Specimen</div>
+                
+                <!-- Autocomplete Combobox -->
+                <form id="recommendForm" method="POST" autocomplete="off" class="search-form">
+                    <div class="autocomplete-container">
+                        <input type="text" id="movieSearch" placeholder="Search movies by title..." value="{{ selected_movie }}" class="search-input" required>
+                        <input type="hidden" id="selectedMovie" name="movie" value="{{ selected_movie }}">
+                        <div id="suggestionsList" class="suggestions-dropdown hidden"></div>
+                    </div>
+                    <button type="submit" class="submit-button font-sans">Find Similar Matches</button>
+                </form>
+
+                <!-- Quick Pick Presets -->
+                <div class="presets-section">
+                    <div class="presets-label uppercase-label">Example Presets:</div>
+                    <div class="presets-grid">
+                        <button type="button" onclick="selectPreset('Toy Story (1995)')" class="preset-badge">Toy Story</button>
+                        <button type="button" onclick="selectPreset('Matrix, The (1999)')" class="preset-badge">The Matrix</button>
+                        <button type="button" onclick="selectPreset('Forrest Gump (1994)')" class="preset-badge">Forrest Gump</button>
+                        <button type="button" onclick="selectPreset('Jurassic Park (1993)')" class="preset-badge">Jurassic Park</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- RIGHT COLUMN: RECOMMENDATIONS DISPLAY -->
+            <div class="results-panel">
+                
+                <div class="section-title uppercase-label">Matched Output</div>
+
+                {% if recommendations %}
+                    <div class="results-header">
+                        <span class="now-showing-label uppercase-label">Selected:</span>
+                        <h3 class="selected-movie-title serif-font">{{ selected_movie }}</h3>
+                    </div>
+
+                    <div class="tickets-container">
+                        {% for movie in recommendations %}
+                            <div class="ticket-stub" style="animation-delay: {{ loop.index0 * 100 }}ms">
+                                <div class="ticket-left">
+                                    <span class="ticket-index font-mono">0{{ loop.index }}</span>
+                                </div>
+                                <div class="ticket-body">
+                                    <div class="ticket-film-title serif-font">{{ movie }}</div>
+                                    <div class="ticket-stub-footer font-sans">Admit One • Recommendation Specimen</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="placeholder-state">
+                        <div class="placeholder-camera-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="0.8" stroke="currentColor" class="w-12 h-12 stroke-stone-300">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-12 0a2.25 2.25 0 0 1-2.25-2.25V6.75A2.25 2.25 0 0 1 4.5 4.5h15a2.25 2.25 0 0 1 2.25 2.25v11.25a2.25 2.25 0 0 1-2.25 2.25m-12 0h12" />
+                                <circle cx="12" cy="11" r="3" />
+                            </svg>
+                        </div>
+                        <p class="placeholder-text font-sans">Select a film to retrieve similar recommendations.</p>
+                    </div>
+                {% endif %}
+
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <footer class="archive-footer font-sans">
+            <span>Content-Based Filtering</span>
+            <span>Cosine Similarity Model</span>
+        </footer>
+
+    </div>
+
+    <!-- Inject movies list and autocomplete scripts -->
+    <script>
+        // Load all movies as a JS array
+        const ALL_MOVIES = {{ movies|tojson }};
+        
+        const searchInput = document.getElementById('movieSearch');
+        const hiddenInput = document.getElementById('selectedMovie');
+        const suggestionsList = document.getElementById('suggestionsList');
+        const form = document.getElementById('recommendForm');
+
+        // Preset selector helper
+        function selectPreset(title) {
+            searchInput.value = title;
+            hiddenInput.value = title;
+            form.submit();
+        }
+
+        // Show matching suggestions on typing
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            suggestionsList.innerHTML = '';
+            
+            if (!query) {
+                suggestionsList.classList.add('hidden');
+                return;
+            }
+
+            // Filter movies matching search term (max 6 matches)
+            const matches = ALL_MOVIES
+                .filter(m => m.toLowerCase().includes(query))
+                .slice(0, 6);
+
+            if (matches.length === 0) {
+                suggestionsList.classList.add('hidden');
+                return;
+            }
+
+            matches.forEach(match => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                
+                // Bold the matching text segment
+                const idx = match.toLowerCase().indexOf(query);
+                if (idx >= 0) {
+                    const before = match.substring(0, idx);
+                    const term = match.substring(idx, idx + query.length);
+                    const after = match.substring(idx + query.length);
+                    item.innerHTML = `${before}<strong>${term}</strong>${after}`;
+                } else {
+                    item.innerText = match;
+                }
+
+                item.addEventListener('click', () => {
+                    searchInput.value = match;
+                    hiddenInput.value = match;
+                    suggestionsList.classList.add('hidden');
+                    form.submit(); // Submit form instantly on click
+                });
+
+                suggestionsList.appendChild(item);
+            });
+
+            suggestionsList.classList.remove('hidden');
+        });
+
+        // Hide suggestions dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.autocomplete-container')) {
+                suggestionsList.classList.add('hidden');
+            }
+        });
+
+        // Focus search input highlights selection
+        searchInput.addEventListener('focus', () => {
+            if (searchInput.value) {
+                // Re-trigger filtering on focus
+                searchInput.dispatchEvent(new Event('input'));
+            }
+        });
+    </script>
+
+</body>
+</html>
